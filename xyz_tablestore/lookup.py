@@ -17,6 +17,8 @@ def build_tablestore_query(data, field_types=None, fields=None, search_fields=No
     :param search_fields: list，用于全局搜索的字段列表（对应 data['search']）
     :return: Query 对象（通常是 BoolQuery）
     """
+    if not data:
+        return MatchAllQuery()
     field_types = field_types or {}
     fields = set(fields) if fields else None
     search_fields = search_fields or []
