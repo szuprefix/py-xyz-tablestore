@@ -80,7 +80,7 @@ class Store:
             FieldSort(field, order=order) for field, order in sort_fields
         ])
 
-    def count(self, query, index_name=None,):
+    def count(self, query={}, index_name=None,):
         query = build_tablestore_query(query)
         search_q = SearchQuery(
             query=query,

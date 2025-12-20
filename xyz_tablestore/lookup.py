@@ -7,7 +7,7 @@ def ensure_list(v):
         return list(v)
     return [v]
 
-def build_tablestore_query(data, field_types=None, fields=None, search_fields=None):
+def build_tablestore_query(data=None, field_types=None, fields=None, search_fields=None):
     """
     将扁平查询参数转换为 Tablestore 多元索引的 Query 对象（BoolQuery）
 
@@ -122,12 +122,12 @@ def build_tablestore_query(data, field_types=None, fields=None, search_fields=No
     # 3. 组合查询
     bool_clauses = {}
     if must_queries:
-        bool_clauses['must'] = must_queries
+        bool_clauses['must_queries'] = must_queries
     if should_queries:
-        bool_clauses['should'] = should_queries
+        bool_clauses['should_queries'] = should_queries
         bool_clauses['minimum_should_match'] = 1  # 至少匹配一个 should
     if must_not_queries:
-        bool_clauses['must_not'] = must_not_queries
+        bool_clauses['must_not_queries'] = must_not_queries
 
     if not bool_clauses:
         return MatchAllQuery()
