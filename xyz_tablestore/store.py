@@ -73,6 +73,11 @@ class Store:
         row = self.dict2row(d)
         self.client.put_row(self.name, row)
 
+    def upsert(self, d):
+        row = self.dict2row(d)
+        condition = Condition(RowExistenceExpectation.IGNORE)  # 忽略是否存在，总是执行
+        self.client.update_row(self.name, row, condition)
+
     def _get_sort(self, sort_fields):
         if not sort_fields:
             return None
@@ -206,3 +211,90 @@ class Store:
             print(f"Search error: {e}")
             raise
     find = search
+
+    def query_by_index(
+            self,
+            index_query,
+            columns=None,
+            sort_fields=None,
+            limit=100,
+            index_name=None
+    ):
+        """
+        通过二级索引查询（不使用主键）
+
+        :param index_query: dict / Query，由 build_tablestore_query 处理
+        :param columns: 返回字段列表
+        :param sort_fields: [('field', SortOrder.ASC)]
+        :param limit: 返回条数
+        :param index_name: 指定索引名
+        """
+        if limit < 1:
+            limit = 10
+        if limit > 100:
+            limit = 100
+
+        query = build_tablestore_query(index_query)
+        sort = self._get_sort(sort_fields)
+
+        search_q = SearchQuery(
+            query=query,
+            sort=sort,
+            limit=limit,
+            get_total_count=False
+        )
+
+        if not index_name:
+            index_name = f'{self.name}_index'
+
+        if columns:
+            columns_to_get = ColumnsToGet(
+                return_type=ColumnReturnType.SPECIFIED,
+                column_names=columns
+            )
+        else:
+            columns_to_get = ColumnsToGet(
+                return_type=ColumnReturnType.ALL
+            )
+
+        rs = self.client.search(
+            table_name=self.name,
+            index_name=index_name,
+            search_query=search_q,
+            columns_to_get=columns_to_get
+        )
+
+        return [self.row2dict(row) for row in rs.rows]
+
+    def all(self, batch_size=100):
+        """
+        全表遍历（主键顺序扫描）
+        :return: generator
+        """
+        if batch_size < 1:
+            batch_size = 100
+        if batch_size > 500:
+            batch_size = 500
+
+        start_pk = None
+
+        while True:
+            consumed, rows, next_start_pk = self.client.get_range(
+                table_name=self.name,
+                direction=Direction.FORWARD,
+                inclusive_start_primary_key=start_pk,
+                exclusive_end_primary_key=None,
+                max_version=1,
+                limit=batch_size
+            )
+
+            if not rows:
+                break
+
+            for row in rows:
+                yield self.row2dict(row)
+
+            if not next_start_pk:
+                break
+
+            start_pk = next_start_pk
