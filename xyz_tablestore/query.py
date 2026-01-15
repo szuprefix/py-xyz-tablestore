@@ -358,7 +358,8 @@ class Manager:
     """模型管理器"""
 
     def __init__(self):
-        self.client = None
+        from .store import get_client
+        self.client = get_client()
 
     def __get__(self, instance, owner):
         if instance is not None:

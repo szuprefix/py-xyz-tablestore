@@ -87,16 +87,29 @@ def build_tablestore_query(data=None, field_types=None, fields=None, search_fiel
                 query = TermsQuery(base_field, value_list)
                 is_not = True
         elif op in ('gt', 'gte', 'lt', 'lte'):
-            range_args = {}
+            range_from = range_to = None
+            include_lower = include_upper = False
+
             if op == 'gt':
-                range_args['gt'] = value
+                range_from = value
+                include_lower = False
             elif op == 'gte':
-                range_args['gte'] = value
+                range_from = value
+                include_lower = True
             elif op == 'lt':
-                range_args['lt'] = value
+                range_to = value
+                include_upper = False
             elif op == 'lte':
-                range_args['lte'] = value
-            query = RangeQuery(base_field, **range_args)
+                range_to = value
+                include_upper = True
+
+            query = RangeQuery(
+                field_name=base_field,
+                range_from=range_from,
+                range_to=range_to,
+                include_lower=include_lower,
+                include_upper=include_upper
+            )
         elif op in ('regex', 'wildcard'):
             pattern = str(value).replace('%', '*').replace('_', '?')
             if '*' not in pattern and '?' not in pattern:
