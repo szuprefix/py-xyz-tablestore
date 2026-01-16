@@ -1,48 +1,54 @@
-import pymongo
-from .config import SERVER, DB, TIMEOUT
-import datetime, json
+import datetime, json, os
+from tablestore import *
 
-from six import text_type
-from bson.objectid import ObjectId
+def get_client(
+        endpoint=os.getenv('OTS_ENDPOINT', ''),
+        instance_name=os.getenv('OTS_DB', 'test'),
+        access_key_id=os.getenv('OTS_KEY_ID'),
+        access_key_secret=os.getenv('OTS_KEY_SECRET')
+):
+    return OTSClient(endpoint, access_key_id, access_key_secret, instance_name)
 
-def json_schema(d, prefix=''):
-    import bson
-    tm = {
-        int: 'integer',
-        bson.int64.Int64: 'integer',
-        ObjectId: 'oid',
-        float: 'number',
-        bool: 'boolean',
-        list: 'array',
-        text_type: 'string',
-        type(None): 'null',
-        dict: 'object',
-        datetime.datetime: 'datetime'
-    }
-    r = {}
+def timestamp_ms(d=None):
+    if not d:
+        d = datetime.now()
+    return math.floor(d.timestamp()*1000)
+
+
+def encode(v):
+    if isinstance(v, (list, tuple, dict)):
+        return json.dumps(v)
+    return v
+
+def map_encode(d):
+    return dict([(k, encode(v)) for k, v in d.items()])
+
+def decode(v):
+    if isinstance(v, str):
+        if (v.startswith('[') and v.endswith(']')) or (v.startswith('{') and v.endswith('}')):
+            try:
+                v = json.loads(v)
+            except Exception as e:
+                logging.warning(f'json error:{e}')
+            return v
+    return v
+
+def dict2row(d, pks):
+    pfs = []
+    fs = []
     for k, v in d.items():
-        t = tm[type(v)]
-        fn = '%s%s' % (prefix, k)
-        r[fn] = t
-        if t == 'object':
-            r.update(json_schema(v, prefix='%s.' % fn))
-    return r
+        if v is None:
+            continue
+        if k in pks:
+            pfs.append((k, v))
+        else:
+            fs.append((k, encode(v)))
+    return Row(pfs, fs)
 
-
-
-def loadMongoDB(server=SERVER, db=DB, timeout=TIMEOUT):
-    client = pymongo.MongoClient(server, serverSelectionTimeoutMS=timeout)
-    return getattr(client, db)
-
-def filed_type_func(f):
-    return {
-        'integer': int,
-        'number': float,
-        'datetime': datetime.datetime.fromisoformat,
-        'date': datetime.datetime.fromisoformat,
-        'object': json.loads,
-        'oid': ObjectId
-    }.get(f, text_type)
-
-def all_fields_type_func(fs):
-    return dict([(fn, filed_type_func(ft)) for fn, ft in fs.items()])
+def row2dict(row):
+    d = dict()
+    r = row if isinstance(row, tuple) else [row.primary_key, row.attribute_columns]
+    for s in r:
+        for f in s:
+            d[f[0]] = decode(f[1])
+    return d

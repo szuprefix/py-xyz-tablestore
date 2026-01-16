@@ -3,19 +3,8 @@ import os, json, logging, math, base64
 from tablestore import *
 from xyz_tablestore.lookup import build_tablestore_query
 from tablestore import INF_MIN, INF_MAX, Direction
+from .utils import encode, decode, dict2row, row2dict, get_client, map_encode
 
-def get_client(
-        endpoint=os.getenv('OTS_ENDPOINT', ''),
-        instance_name=os.getenv('OTS_DB', 'test'),
-        access_key_id=os.getenv('OTS_KEY_ID'),
-        access_key_secret=os.getenv('OTS_KEY_SECRET')
-):
-    return OTSClient(endpoint, access_key_id, access_key_secret, instance_name)
-
-def timestamp_ms(d=None):
-    if not d:
-        d = datetime.now()
-    return math.floor(d.timestamp()*1000)
 
 class Store:
     primary_key_schema = [('id', 'STRING')]
@@ -36,45 +25,11 @@ class Store:
 
         self.client.create_table(table_meta, table_options, reserved_throughput)
 
-    def encode(self, v):
-        if isinstance(v, (list, tuple, dict)):
-            return json.dumps(v)
-        return v
-
-    def decode(self, v):
-        if isinstance(v, str):
-            if (v.startswith('[') and v.endswith(']')) or (v.startswith('{') and v.endswith('}')):
-                try:
-                    v = json.loads(v)
-                except Exception as e:
-                    logging.warning(f'json error:{e}')
-                return v
-        return v
-
-    def dict2row(self, d):
-        pfs = []
-        fs = []
-        for k, v in d.items():
-            if v is None:
-                continue
-            if k in self.pks:
-                pfs.append((k, v))
-            else:
-                fs.append((k, self.encode(v)))
-        return Row(pfs, fs)
-
-    def row2dict(self, row):
-        d = dict()
-        r = row if isinstance(row, tuple) else [row.primary_key, row.attribute_columns]
-        for s in r:
-            for f in s:
-                d[f[0]] = self.decode(f[1])
-        return d
 
     def get(self, cond):
         primary_key = list(cond.items())
         consumed, return_row, next_token = self.client.get_row(self.name, primary_key)
-        return self.row2dict(return_row) if return_row else None
+        return row2dict(return_row) if return_row else None
 
     def save(self, d):
         return self.upsert(d)
@@ -94,9 +49,10 @@ class Store:
 
         row = Row(
             primary_key=primary_key,
-            attribute_columns=[(k, self.encode(v)) for k, v in insert_attrs.items()]
+            attribute_columns=[(k, encode(v)) for k, v in insert_attrs.items()]
         )
         try:
+            # print(row)
             return self.client.put_row(self.name, row, condition=Condition(RowExistenceExpectation.EXPECT_NOT_EXIST))
         except OTSServiceError as e:
             # print(e.code, e.message)
@@ -111,13 +67,14 @@ class Store:
             if not dl:
                 continue
             if action in ['put', 'increment']:
+                dl = map_encode(dl)
                 attribute_columns[action] = list(dl.items())
             else:
                 attribute_columns[action] = dl
         for k, v in cond.items():
             if k in self.pks:
                 continue
-            attribute_columns.setdefault('put',[]).append((k, self.encode(v)))
+            attribute_columns.setdefault('put',[]).append((k, encode(v)))
 
         if not attribute_columns:
             return
@@ -213,7 +170,7 @@ class Store:
 
             items = []
             for item in rs.rows:
-                items.append(self.row2dict(item))
+                items.append(row2dict(item))
 
             total = rs.total_count
             total_pages = math.ceil(total / page_size) if total > 0 else 1
@@ -247,7 +204,7 @@ class Store:
 
     def sql_query(self, sql, **kwargs):
         rows, reserved, consumption = self.client.exe_sql_query(sql)
-        return [self.row2dict(a) for a in rows]
+        return [row2dict(a) for a in rows]
 
     def find(self, *args, **kwargs):
         rs = self.search(*args, **kwargs)
@@ -286,7 +243,7 @@ class Store:
                 break
 
             for row in rows:
-                yield self.row2dict(row)
+                yield row2dict(row)
 
             # 扫描结束
             if not next_start_pk:
