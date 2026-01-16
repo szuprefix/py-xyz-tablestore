@@ -1,5 +1,5 @@
 from datetime import datetime
-import os, json, logging, math
+import os, json, logging, math, base64
 from tablestore import *
 from xyz_tablestore.lookup import build_tablestore_query
 from tablestore import INF_MIN, INF_MAX, Direction
@@ -94,7 +94,7 @@ class Store:
 
         row = Row(
             primary_key=primary_key,
-            attribute_columns=[(k, v) for k, v in insert_attrs.items()]
+            attribute_columns=[(k, self.encode(v)) for k, v in insert_attrs.items()]
         )
         try:
             return self.client.put_row(self.name, row, condition=Condition(RowExistenceExpectation.EXPECT_NOT_EXIST))
@@ -117,7 +117,7 @@ class Store:
         for k, v in cond.items():
             if k in self.pks:
                 continue
-            attribute_columns.setdefault('put',[]).append((k, v))
+            attribute_columns.setdefault('put',[]).append((k, self.encode(v)))
 
         if not attribute_columns:
             return
@@ -175,7 +175,7 @@ class Store:
         if next_token is not None:
             # ===== Token 分页（推荐用于深度分页）=====
             search_q.limit=page_size
-            search_q.next_token=next_token
+            search_q.next_token=base64.urlsafe_b64decode(next_token.encode('ascii')) if isinstance(next_token, str) else next_token
         else:
             # ===== PageNo 分页（仅用于浅层）=====
             if page_no is None:
@@ -221,7 +221,7 @@ class Store:
                 "items": items,
                 "total": total,
                 "page_size": page_size,
-                "next_token": rs.next_token,
+                "next_token": base64.urlsafe_b64encode(rs.next_token).decode('ascii'),
                 "has_more": bool(rs.next_token),
                 "total_pages": total_pages,
             }
