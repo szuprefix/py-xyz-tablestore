@@ -1,10 +1,13 @@
 from datetime import datetime
-import os, json, logging, math, base64, copy
+import os, json, logging, math, base64, copy, logging
 from tablestore import *
 from xyz_tablestore.lookup import build_tablestore_query
 from tablestore import INF_MIN, INF_MAX, Direction
 from .utils import encode, decode, dict2row, row2dict, get_client, map_encode
 
+class SuppressConditionCheckFail(logging.Filter):
+    def filter(self, record):
+        return 'OTSConditionCheckFail' not in record.getMessage()
 
 class Store:
     primary_key_schema = [('id', 'STRING')]
@@ -46,13 +49,18 @@ class Store:
         )
         if 'increment' in kwargs:
             irow.attribute_columns+=list(kwargs['increment'].items())
+        logger = self.client.logger
+        filt = SuppressConditionCheckFail()
         try:
+            logger.addFilter(filt) # dont want to output error log by condition check
             return True, self.client.put_row(self.name, irow, condition=Condition(RowExistenceExpectation.EXPECT_NOT_EXIST))
         except OTSServiceError as e:
             if e.code == 'OTSConditionCheckFail':
                 pass  # 继续更新
             else:
                 raise
+        finally:
+            logger.removeFilter(filt)
 
         # print(row)
         urow = Row(
