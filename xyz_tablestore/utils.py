@@ -52,3 +52,4 @@ def row2dict(row):
         for f in s:
             d[f[0]] = decode(f[1])
     return d
+

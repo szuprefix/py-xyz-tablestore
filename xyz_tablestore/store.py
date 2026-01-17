@@ -1,5 +1,5 @@
 from datetime import datetime
-import os, json, logging, math, base64
+import os, json, logging, math, base64, copy
 from tablestore import *
 from xyz_tablestore.lookup import build_tablestore_query
 from tablestore import INF_MIN, INF_MAX, Direction
@@ -35,51 +35,31 @@ class Store:
         return self.upsert(d)
 
     def upsert(self, cond, put={}, set_on_insert={}, **kwargs):
-        primary_key = []
         for k in self.pks:
             if k not in cond:
                 raise ValueError(f"Missing primary key field: {k}")
-            if k in put:
-                put.pop(k)
-            primary_key.append((k, cond[k]))
+        row = dict2row(dict(**cond,**put), self.pks)
 
-        insert_attrs = {**set_on_insert, **put}
-        if 'increment' in kwargs:
-            insert_attrs.update(kwargs['increment'])
-
-        row = Row(
-            primary_key=primary_key,
-            attribute_columns=[(k, encode(v)) for k, v in insert_attrs.items()]
+        irow = Row(
+            primary_key=row.primary_key,
+            attribute_columns=copy.copy(row.attribute_columns)
         )
+        if 'increment' in kwargs:
+            irow.attribute_columns+=list(kwargs['increment'].items())
         try:
-            # print(row)
-            return self.client.put_row(self.name, row, condition=Condition(RowExistenceExpectation.EXPECT_NOT_EXIST))
+            return True, self.client.put_row(self.name, irow, condition=Condition(RowExistenceExpectation.EXPECT_NOT_EXIST))
         except OTSServiceError as e:
-            # print(e.code, e.message)
-            if e.message.startswith('Duplicated attribute column name'):
+            if e.code == 'OTSConditionCheckFail':
                 pass  # 继续更新
             else:
                 raise
 
-        attribute_columns = dict()
-
-        for action,  dl in dict(put=put, **kwargs).items():
-            if not dl:
-                continue
-            if action in ['put', 'increment']:
-                dl = map_encode(dl)
-                attribute_columns[action] = list(dl.items())
-            else:
-                attribute_columns[action] = dl
-        for k, v in cond.items():
-            if k in self.pks:
-                continue
-            attribute_columns.setdefault('put',[]).append((k, encode(v)))
-
-        if not attribute_columns:
-            return
-        row = Row(primary_key, attribute_columns)
-        return self.client.update_row(self.name, row, Condition(RowExistenceExpectation.IGNORE))
+        # print(row)
+        urow = Row(
+            primary_key=row.primary_key,
+            attribute_columns=dict(put=row.attribute_columns, **dict([(k, list(v.items())) for k,v in kwargs.items()]))
+        )
+        return False, self.client.update_row(self.name, urow, Condition(RowExistenceExpectation.IGNORE))
 
 
     def _get_sort(self, sort_fields):
