@@ -43,7 +43,7 @@ class Store:
                 put.pop(k)
             primary_key.append((k, cond[k]))
 
-        insert_attrs = {**cond, **set_on_insert, **put}
+        insert_attrs = {**set_on_insert, **put}
         if 'increment' in kwargs:
             insert_attrs.update(kwargs['increment'])
 
