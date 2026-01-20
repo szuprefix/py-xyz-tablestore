@@ -41,7 +41,9 @@ class Store:
         for k in self.pks:
             if k not in cond:
                 raise ValueError(f"Missing primary key field: {k}")
-        row = dict2row(dict(**cond,**put), self.pks)
+        d = dict(**cond)
+        d.update(put)
+        row = dict2row(d, self.pks)
 
         irow = Row(
             primary_key=row.primary_key,
