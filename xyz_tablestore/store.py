@@ -51,6 +51,8 @@ class Store:
         )
         if 'increment' in kwargs:
             irow.attribute_columns+=list(kwargs['increment'].items())
+        if set_on_insert:
+            irow.attribute_columns += list(set_on_insert.items())
         logger = self.client.logger
         filt = SuppressConditionCheckFail()
         try:
