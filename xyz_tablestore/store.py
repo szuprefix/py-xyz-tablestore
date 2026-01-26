@@ -108,6 +108,8 @@ class Store:
     ):
         if page_size < 1:
             page_size = 10
+        if page_size > 100:
+            page_size = 100
 
         query = build_tablestore_query(query)
 
@@ -194,17 +196,34 @@ class Store:
             print(f"Search error: {e}")
             raise
 
+
     def sql_query(self, sql, **kwargs):
         rows, reserved, consumption = self.client.exe_sql_query(sql)
         return [row2dict(a) for a in rows]
 
-    def find(self, *args, **kwargs):
+    def find(self, *args, limit=1000, **kwargs):
+        # 移除 page_no，确保始终用 token 模式
+        kwargs.pop('page_no', None)
         rs = self.search(*args, **kwargs)
         yield from rs['items']
         while rs['next_token']:
             rs = self.search(*args, **kwargs, next_token=rs['next_token'])
             yield from rs['items']
 
+    def table_exists(self):
+        try:
+            self.client.describe_table(self.name)
+            return True
+        except OTSServiceError as e:
+            if e.code == 'OTSObjectNotExist':
+                return False
+            else:
+                raise e
+
+    def ensure_table(self):
+        if self.table_exists():
+            return
+        self.create()
 
     def all(self, batch_size=100, columns=None):
         """
