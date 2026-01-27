@@ -29,10 +29,19 @@ class Store:
         self.client.create_table(table_meta, table_options, reserved_throughput)
 
 
-    def get(self, cond):
+    def get(self, cond, **kwargs):
         primary_key = list(cond.items())
-        consumed, return_row, next_token = self.client.get_row(self.name, primary_key)
+        consumed, return_row, next_token = self.client.get_row(self.name, primary_key, **kwargs)
         return row2dict(return_row) if return_row else None
+
+
+    def batch_get(self, pks, **kwargs):
+        rs = []
+        for pk in pks:
+            d = self.get(pk, **kwargs)
+            if d:
+                rs.append(d)
+        return rs
 
     def save(self, d):
         return self.upsert(d)

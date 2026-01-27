@@ -5,7 +5,7 @@ import sys
 
 setup(
     name="xyz-tablestore",
-    version="0.0.14",
+    version="0.0.15",
     author="szuprefix",
     author_email="szuprefix@126.com",
     description="tablestore utils",
