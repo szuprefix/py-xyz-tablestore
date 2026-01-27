@@ -1,4 +1,4 @@
-import datetime, json, os
+import datetime, json, os, logging
 from tablestore import *
 
 def get_client(
