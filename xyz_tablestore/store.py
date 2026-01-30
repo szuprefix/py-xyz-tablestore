@@ -90,6 +90,24 @@ class Store:
             FieldSort(field, order=order) for field, order in sort_fields
         ])
 
+    def _get_edge_pks(self, pks, edge='begin'):
+        if edge=='begin':
+            edge = INF_MIN
+        if edge == 'end':
+            edge = INF_MAX
+        if not pks:
+            pks = [(pk, edge) for pk in self.pks]
+        elif isinstance(pks, dict):
+            pks = [(k, edge if v is None else v )for k, v in pks.items()]
+        return pks
+
+    def _get_direction(self, direction):
+        if direction == '-':
+            direction = Direction.BACKWARD
+        elif direction == '+':
+            direction = Direction.FORWARD
+        return direction
+
     def count(self, query={}, index_name=None,):
         query = build_tablestore_query(query)
         search_q = SearchQuery(
@@ -271,3 +289,15 @@ class Store:
 
             # 用 SDK 返回的 next_start_pk 继续
             start_pk = next_start_pk
+
+
+
+    def xget_range(self, begin=None, end=None, direction=Direction.FORWARD, **kwargs):
+        pk_begin = self._get_edge_pks(begin, INF_MIN)
+        pk_end = self._get_edge_pks(end, INF_MAX)
+        direction = self._get_direction(direction)
+        consumed_counter = CapacityUnit(0, 0)
+        for row in self.client.xget_range(
+            self.name, direction, pk_begin, pk_end,consumed_counter, **kwargs
+        ):
+            yield row2dict(row)
