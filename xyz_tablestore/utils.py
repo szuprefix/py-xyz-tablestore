@@ -34,15 +34,16 @@ def decode(v):
     return v
 
 def dict2row(d, pks):
+    d = dict(**d)
     pfs = []
     fs = []
+    for k in pks:
+        pfs.append((k, d.pop(k, None)))
+
     for k, v in d.items():
         if v is None:
             continue
-        if k in pks:
-            pfs.append((k, v))
-        else:
-            fs.append((k, encode(v)))
+        fs.append((k, encode(v)))
     return Row(pfs, fs)
 
 def row2dict(row):

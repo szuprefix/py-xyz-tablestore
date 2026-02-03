@@ -46,6 +46,9 @@ class Store:
     def save(self, d):
         return self.upsert(d)
 
+    def insert(self, d):
+        return self.client.put_row(self.name, dict2row(d, self.pks), condition=Condition(RowExistenceExpectation.IGNORE))
+
     def upsert(self, cond, put={}, set_on_insert={}, **kwargs):
         for k in self.pks:
             if k not in cond:
