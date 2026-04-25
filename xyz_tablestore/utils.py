@@ -29,7 +29,7 @@ def decode(v):
             try:
                 v = json.loads(v)
             except Exception as e:
-                logging.warning(f'json error:{e}')
+                logging.warning(f'json error:{e} value: {v}')
             return v
     return v
 
