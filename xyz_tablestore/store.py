@@ -1,8 +1,7 @@
 from datetime import datetime
 import os, json, logging, math, base64, copy, logging
+from .lookup import build_tablestore_query
 from tablestore import *
-from xyz_tablestore.lookup import build_tablestore_query
-from tablestore import INF_MIN, INF_MAX, Direction
 from .utils import encode, decode, dict2row, row2dict, get_client, map_encode
 
 class SuppressConditionCheckFail(logging.Filter):
@@ -34,6 +33,42 @@ class Store:
         consumed, return_row, next_token = self.client.get_row(self.name, primary_key, **kwargs)
         return row2dict(return_row) if return_row else None
 
+
+    def get_or_create(self, cond, defaults=None):
+        """Return (record, created), looking up a row by its complete primary key.
+
+        Defaults are used only when creating; values in cond take precedence.
+        A concurrent insert is read back without overwriting the existing row.
+        """
+        for k in self.pks:
+            if k not in cond:
+                raise ValueError(f"Missing primary key field: {k}")
+        primary_key = {k: cond[k] for k in self.pks}
+        record = self.get(primary_key)
+        if record is not None:
+            return record, False
+
+        data = dict(defaults or {})
+        data.update(cond)
+        row = dict2row(data, self.pks)
+        logger = self.client.logger
+        filt = SuppressConditionCheckFail()
+        try:
+            logger.addFilter(filt)
+            self.client.put_row(
+                self.name, row,
+                condition=Condition(RowExistenceExpectation.EXPECT_NOT_EXIST)
+            )
+        except OTSServiceError as e:
+            if e.code != 'OTSConditionCheckFail':
+                raise
+            record = self.get(primary_key)
+            if record is None:
+                raise
+            return record, False
+        finally:
+            logger.removeFilter(filt)
+        return row2dict(row), True
 
     def batch_get(self, pks, **kwargs):
         rs = []
