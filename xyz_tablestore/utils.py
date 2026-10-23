@@ -1,4 +1,4 @@
-import datetime, json, os, logging
+import datetime, json, os, logging, math
 from tablestore import *
 
 def get_client(
@@ -17,7 +17,7 @@ def timestamp_ms(d=None):
 
 def encode(v):
     if isinstance(v, (list, tuple, dict)):
-        return json.dumps(v)
+        return json.dumps(v, ensure_ascii=False)
     return v
 
 def map_encode(d):
