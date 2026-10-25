@@ -237,7 +237,7 @@ class Store:
                 "items": items,
                 "total": total,
                 "page_size": page_size,
-                "next_token": base64.urlsafe_b64encode(rs.next_token).decode('ascii'),
+                "next_token": base64.urlsafe_b64encode(rs.next_token).decode('ascii') if rs.next_token else None,
                 "has_more": bool(rs.next_token),
                 "total_pages": total_pages,
             }

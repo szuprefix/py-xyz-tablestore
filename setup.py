@@ -5,7 +5,7 @@ import sys
 
 setup(
     name="xyz-tablestore",
-    version="0.1.0",
+    version="0.1.1",
     author="szuprefix",
     author_email="szuprefix@126.com",
     description="tablestore utils",
@@ -14,8 +14,8 @@ setup(
     url="https://github.com/szuprefix/py-xyz-tablestore",
     packages=find_packages(exclude=['tests.*', 'tests', 'testproject', 'example.*', 'example']),
     include_package_data=True,
-    install_requires=[
-    ],
+    install_requires=['tablestore'],
+    extras_require={'rest': ['Django', 'djangorestframework']},
     classifiers=[
         "Environment :: Web Environment",
         "Intended Audience :: Developers",
