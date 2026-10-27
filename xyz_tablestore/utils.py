@@ -1,5 +1,6 @@
 import datetime, json, os, logging, math
 from tablestore import *
+from decimal import Decimal
 
 def get_client(
         endpoint=os.getenv('OTS_ENDPOINT', ''),
@@ -18,6 +19,8 @@ def timestamp_ms(d=None):
 def encode(v):
     if isinstance(v, (list, tuple, dict)):
         return json.dumps(v, ensure_ascii=False)
+    if isinstance(v, Decimal):
+        return float(v)
     return v
 
 def map_encode(d):
